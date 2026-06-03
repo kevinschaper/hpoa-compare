@@ -102,9 +102,12 @@ def compare_disease(
             more_general += 1
 
     def _terms(ids: set[str]) -> list[dict]:
+        # Rank by depth (longest is-a path), not descendant-count IC: every leaf
+        # has 1 descendant and so saturates at the same max IC, which makes IC
+        # useless for ordering the (leaf-heavy) novel/missing lists.
         ranked = sorted(
-            ({"id": t, "label": hpo.label(t), "ic": round(hpo.ic(t), 3)} for t in ids),
-            key=lambda x: -x["ic"],
+            ({"id": t, "label": hpo.label(t), "depth": hpo.depth(t)} for t in ids),
+            key=lambda x: -x["depth"],
         )
         return ranked[:diff_cap]  # full counts live in n_novel / n_missing
 

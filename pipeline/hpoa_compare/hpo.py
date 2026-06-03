@@ -27,6 +27,7 @@ class HpoGraph:
         self.con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
         self._anc: dict[str, set[str]] = {}
         self._desc: dict[str, set[str]] = {}
+        self._depth_cache: dict[str, int] = {}
         self._load_edges()
         self._precompute()
 
@@ -40,6 +41,14 @@ class HpoGraph:
             # entailed_edge is reflexive+transitive: subject is-a* object.
             self._anc.setdefault(subj, set()).add(obj)
             self._desc.setdefault(obj, set()).add(subj)
+        # direct parents (non-transitive) for longest-path depth
+        self._parents: dict[str, set[str]] = {}
+        for subj, obj in self.con.execute(
+            "SELECT subject, object FROM edge "
+            "WHERE predicate = ? AND subject LIKE 'HP:%' AND object LIKE 'HP:%'",
+            (IS_A,),
+        ):
+            self._parents.setdefault(subj, set()).add(obj)
 
     def _precompute(self) -> None:
         """Pin the universe, ancestor frozensets, and structure-based IC up front
@@ -81,6 +90,20 @@ class HpoGraph:
         """IC of the most-informative common ancestor of two terms."""
         common = self.ancestors(t1) & self.ancestors(t2)
         return max((self._ic.get(a, 0.0) for a in common), default=0.0)
+
+    def depth(self, term: str) -> int:
+        """Longest is-a path from HP:0000118 (specificity that discriminates leaves,
+        unlike descendant-count IC which saturates at the max for every leaf)."""
+        if term == PHENOTYPIC_ABNORMALITY or term not in self.universe:
+            return 0
+        cached = self._depth_cache.get(term)
+        if cached is not None:
+            return cached
+        self._depth_cache[term] = 0  # cycle guard
+        parents = self._parents.get(term, set()) & self.universe
+        d = 1 + max((self.depth(p) for p in parents), default=-1)
+        self._depth_cache[term] = d
+        return d
 
     @cached_property
     def labels(self) -> dict[str, str]:

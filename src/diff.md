@@ -3,8 +3,9 @@
 The actionable term-level differences. **Novel** = a dismech HP term with no
 ancestor or descendant among the disease's HPOA annotations — a candidate new
 association (or a curation error to check). **Missing** = an HPOA term with no
-ancestor/descendant in dismech — a recall gap. Terms are ranked by information
-content (rarer/more-specific first); up to 25 per disease are listed.
+ancestor/descendant in dismech — a recall gap. Terms are ranked by **depth**
+(longest is-a path from *Phenotypic abnormality* — deeper = more specific); up to
+25 per disease are listed.
 
 ```js
 const perDisease = await FileAttachment("data/per_disease.json").json();
@@ -12,10 +13,10 @@ const perDisease = await FileAttachment("data/per_disease.json").json();
 
 ```js
 const novel = perDisease.flatMap((d) =>
-  d.novel_terms.map((t) => ({disease: d.label, mondo: d.mondo, term: t.id, label: t.label, ic: t.ic})),
+  d.novel_terms.map((t) => ({disease: d.label, mondo: d.mondo, term: t.id, label: t.label, depth: t.depth})),
 );
 const missing = perDisease.flatMap((d) =>
-  d.missing_terms.map((t) => ({disease: d.label, mondo: d.mondo, term: t.id, label: t.label, ic: t.ic})),
+  d.missing_terms.map((t) => ({disease: d.label, mondo: d.mondo, term: t.id, label: t.label, depth: t.depth})),
 );
 ```
 
@@ -38,11 +39,10 @@ const novelSearch = view(Inputs.search(novel, {placeholder: "search novel terms�
 
 ```js
 Inputs.table(novelSearch, {
-  sort: "ic",
+  sort: "depth",
   reverse: true,
   format: {
     term: (id) => htl.html`<a href=https://hpo.jax.org/browse/term/${id} target=_blank>${id}</a>`,
-    ic: (x) => x.toFixed(2),
   },
 })
 ```
@@ -55,11 +55,10 @@ const missingSearch = view(Inputs.search(missing, {placeholder: "search missing 
 
 ```js
 Inputs.table(missingSearch, {
-  sort: "ic",
+  sort: "depth",
   reverse: true,
   format: {
     term: (id) => htl.html`<a href=https://hpo.jax.org/browse/term/${id} target=_blank>${id}</a>`,
-    ic: (x) => x.toFixed(2),
   },
 })
 ```

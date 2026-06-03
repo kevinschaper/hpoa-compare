@@ -31,6 +31,9 @@ class StubHpo:
     def ic(self, t):
         return {"A": 0.0, "B": 1.0, "C": 2.0, "X": 2.0}[t]
 
+    def depth(self, t):
+        return {"A": 0, "B": 1, "C": 2, "X": 0}[t]
+
     def mica_ic(self, a, b):
         common = self.ancestors(a) & self.ancestors(b)
         return max((self.ic(c) for c in common), default=0.0)
