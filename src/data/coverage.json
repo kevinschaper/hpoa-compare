@@ -1,8 +1,11 @@
 {
   "dismech_diseases": 1070,
-  "mappable": 843,
+  "hpoa_diseases_mondo": 10731,
+  "hpoa_diseases_raw": 12971,
   "comparable": 682,
-  "hpoa_diseases": 12971,
+  "dismech_only": 388,
+  "dismech_only_beyond_omim_orpha": 227,
+  "hpoa_only": 10049,
   "dismech_rows_hp": 14351,
   "dismech_rows_synthetic": 338,
   "term_comparability": 0.977

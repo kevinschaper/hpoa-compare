@@ -4,6 +4,7 @@ export default {
   theme: ["air", "near-midnight"],
   pages: [
     {name: "Overview", path: "/"},
+    {name: "Disease coverage", path: "/coverage"},
     {name: "Per-disease", path: "/diseases"},
     {name: "Novel & missing", path: "/diff"},
     {name: "Methods", path: "/methods"},

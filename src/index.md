@@ -16,7 +16,7 @@ const perDisease = await FileAttachment("data/per_disease.json").json();
   <div class="card">
     <h2>Comparable diseases</h2>
     <span class="big">${coverage.comparable.toLocaleString()}</span>
-    of ${coverage.dismech_diseases} dismech / ${coverage.mappable} mappable
+    shared MONDO; ${coverage.dismech_only} dismech-only (<a href="./coverage">coverage →</a>)
   </div>
   <div class="card">
     <h2>Term comparability</h2>

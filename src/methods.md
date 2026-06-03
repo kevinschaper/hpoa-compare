@@ -10,15 +10,27 @@
 
 Both are pinned with version + sha256 in [`data/MANIFEST.yaml`](https://github.com/kevinschaper/hpoa-compare/blob/main/data/MANIFEST.yaml).
 
-## Disease axis — MONDO SSSOM
+## Disease axis — MONDO-centric
 
-dismech is MONDO; HPOA is not. Each dismech MONDO disease is resolved through
-the MONDO SSSOM file via `skos:exactMatch` to its OMIM/Orphanet/DECIPHER
-counterparts (`Orphanet:` → `ORPHA:`). When a MONDO term maps to several HPOA
-disease IDs, we compare against the **union** of their HPOA annotations.
+MONDO is the canonical disease space. dismech is natively MONDO; HPOA's
+OMIM/ORPHA/DECIPHER diseases are **lifted up to MONDO** via the MONDO SSSOM
+(`skos:exactMatch`, `Orphanet:` → `ORPHA:`). Several OMIM/ORPHA subtypes that
+share a MONDO collapse onto it, their annotations **unioned**. Both sides then
+live in MONDO space:
 
-A disease is **comparable** only if at least one of its exact-match IDs is
-actually present in HPOA.
+- **shared** — MONDO diseases with annotations on both sides (these are scored);
+- **dismech-only** — dismech curation HPOA doesn't share at that MONDO node;
+- **HPOA-only** — MONDO diseases HPOA characterizes but dismech hasn't.
+
+dismech deliberately curates beyond OMIM/ORPHA (common, acquired, infectious
+disease), so dismech-only is **coverage that extends HPOA**, not a deficiency.
+See [disease coverage](./coverage).
+
+**Known limitation — MONDO grouping granularity.** Matching is currently on the
+exact MONDO node. A dismech entry at a MONDO *grouping* term and an HPOA
+annotation on a *child* MONDO land on different nodes and read as non-overlapping.
+A MONDO is-a–closure pass on the disease axis (mirroring the phenotype axis) is a
+planned refinement.
 
 ## Phenotype axis — hierarchy-aware
 
