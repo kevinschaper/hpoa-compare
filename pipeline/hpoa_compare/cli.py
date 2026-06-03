@@ -104,7 +104,7 @@ def build() -> None:
                 match_type=match_type, n_hpoa_nodes=len(h_match),
             )
         )
-    comparisons.sort(key=lambda c: c.closure.f1)
+    comparisons.sort(key=lambda c: (c.closure.f1, c.mondo))
     exact_comps = [c for c in comparisons if c.match_type == "exact"]
     lineage_comps = [c for c in comparisons if c.match_type != "exact"]
 
@@ -112,21 +112,22 @@ def build() -> None:
     hpoa_lineage_covered = covered_hpoa - exact_shared
 
     # --- disease-axis coverage rows ---
+    # secondary sort on mondo so ties are deterministic (set iteration is not)
     dismech_only_rows = sorted(
         ({"mondo": m, "label": _label(m), "n_terms": len(dis_terms[m]),
           "beyond_omim_orpha": not dmap.has_hpoa_xref(m)} for m in dismech_only),
-        key=lambda r: -r["n_terms"],
+        key=lambda r: (-r["n_terms"], r["mondo"]),
     )
     lineage_rows = sorted(
         ({"mondo": c.mondo, "label": c.label, "match_type": c.match_type,
           "n_hpoa_nodes": c.n_hpoa_nodes, "closure_f1": c.closure.f1} for c in lineage_comps),
-        key=lambda r: -r["n_hpoa_nodes"],
+        key=lambda r: (-r["n_hpoa_nodes"], r["mondo"]),
     )
     hpoa_only_rows = sorted(
         ({"mondo": m, "label": dmap.mondo_labels.get(m, m),
           "n_terms": len(hpoa_mondo_terms[m]),
           "hpoa_ids": sorted(hpoa_mondo_ids.get(m, set()))[:4]} for m in hpoa_only),
-        key=lambda r: -r["n_terms"],
+        key=lambda r: (-r["n_terms"], r["mondo"]),
     )
     disease_coverage = {
         "dismech_only": dismech_only_rows,

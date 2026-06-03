@@ -107,7 +107,7 @@ def compare_disease(
         # useless for ordering the (leaf-heavy) novel/missing lists.
         ranked = sorted(
             ({"id": t, "label": hpo.label(t), "depth": hpo.depth(t)} for t in ids),
-            key=lambda x: -x["depth"],
+            key=lambda x: (-x["depth"], x["id"]),  # id tiebreaker -> deterministic
         )
         return ranked[:diff_cap]  # full counts live in n_novel / n_missing
 
