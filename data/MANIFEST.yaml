@@ -14,7 +14,25 @@ inputs:
     description: MONDO SSSOM mappings (MONDO <-> OMIM/Orphanet/... for the disease axis)
     url: https://purl.obolibrary.org/obo/mondo/mappings/mondo.sssom.tsv
     filename: mondo.sssom.tsv
+    mondo_release: "v2026-06-02"
     sha256: 9574e2fc0eaa6a3669f663257516592abdbedac745d1bda6e92aba74ac3123c8
+
+  mondo_graph:
+    description: >-
+      MONDO is-a graph for disease-axis closure, taken from the release's KGX
+      nodes/edges rather than semsql. The semsql mondo.db lags the OBO release
+      (bbop-sqlite was still on the 2026-05-05 build), so the KGX artifacts are
+      the freshest MONDO graph that is version-matched to mondo.sssom above.
+      ~43.9k MONDO->MONDO biolink:subclass_of edges over ~33.8k nodes.
+    mondo_release: "v2026-06-02"
+    edges:
+      url: https://github.com/monarch-initiative/mondo/releases/latest/download/mondo_edges.tsv
+      filename: mondo_edges.tsv
+      sha256: 01e7d924d93fa1cf25027a05c6dbf78e764ac5ee8b1cbe2446b5d187aca4cee5
+    nodes:
+      url: https://github.com/monarch-initiative/mondo/releases/latest/download/mondo_nodes.tsv
+      filename: mondo_nodes.tsv
+      sha256: f7614a7de9748f2d1672bc5885362a281b7edfebb3fc0ccb9975431813cb2c69
 
   dismech_hpoa:
     description: >-
@@ -27,7 +45,10 @@ inputs:
 
   hpo_db:
     description: >-
-      HPO semantic-SQL build (semsql) for transitive is-a closure (entailed_edge)
-      and structure-based information content. Fetched to data/inputs/hp.db.
+      HPO semantic-SQL build (semsql) for the PHENOTYPE axis: transitive is-a
+      closure (entailed_edge) and structure-based IC. Fetched to data/inputs/hp.db.
+      Currency should track the phenotype.hpoa release; HP terms in annotations
+      are stable, so modest lag is tolerable -- unlike the MONDO disease graph,
+      which we pin to the release KGX above to stay version-matched to the SSSOM.
     url: https://s3.amazonaws.com/bbop-sqlite/hp.db.gz
     filename: hp.db
