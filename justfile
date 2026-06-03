@@ -18,26 +18,11 @@ fetch:
     curl -sL -o mondo_nodes.tsv "https://github.com/monarch-initiative/mondo/releases/latest/download/mondo_nodes.tsv"
     [ -f hp.db ] || { curl -sL -o hp.db.gz "https://s3.amazonaws.com/bbop-sqlite/hp.db.gz"; gunzip -f hp.db.gz; }
     echo "fetched inputs:"; ls -la
-    cd ../.. && just refresh-replaced-by
 
 # Re-derive data/mondo_replaced_by.tsv from the release mondo.obo (replaced_by tags)
 refresh-replaced-by:
-    #!/usr/bin/env bash
-    set -euo pipefail
     curl -sL -o /tmp/mondo.obo "https://github.com/monarch-initiative/mondo/releases/latest/download/mondo.obo"
-    python3 -c "
-import sys
-cur=None; pairs={}
-for line in open('/tmp/mondo.obo'):
-    line=line.rstrip()
-    if line=='[Term]': cur=None
-    elif line.startswith('id: MONDO:'): cur=line[4:]
-    elif line.startswith('replaced_by: MONDO:') and cur: pairs[cur]=line[13:]
-with open('data/mondo_replaced_by.tsv','w') as f:
-    f.write('obsolete\treplacement\n')
-    for k,v in sorted(pairs.items()): f.write(f'{k}\t{v}\n')
-print(f'wrote data/mondo_replaced_by.tsv ({len(pairs)} pairs)')
-"
+    python3 scripts/extract_replaced_by.py /tmp/mondo.obo data/mondo_replaced_by.tsv
     @echo "verify checksums against data/MANIFEST.yaml before relying on a refresh"
 
 # Copy the dismech HPOA export in from a sibling dismech checkout
