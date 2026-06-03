@@ -1,0 +1,31 @@
+{
+  "n_comparable": 682,
+  "exact": {
+    "micro": {
+      "precision": 0.6995,
+      "recall": 0.2048,
+      "f1": 0.3168
+    },
+    "macro": {
+      "precision": 0.6098,
+      "recall": 0.2487,
+      "f1": 0.3087
+    }
+  },
+  "closure": {
+    "micro": {
+      "precision": 0.8554,
+      "recall": 0.3184,
+      "f1": 0.4641
+    },
+    "macro": {
+      "precision": 0.8289,
+      "recall": 0.3881,
+      "f1": 0.4723
+    }
+  },
+  "total_novel": 1431,
+  "total_missing": 18827,
+  "more_specific": 1608,
+  "more_general": 1275
+}

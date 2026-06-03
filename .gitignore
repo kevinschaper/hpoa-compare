@@ -1,0 +1,17 @@
+# Large input data (redistributable; fetched via `just fetch`)
+/data/inputs/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Observable Framework / Node
+node_modules/
+/dist/
+.observablehq/
+
+# OS
+.DS_Store
