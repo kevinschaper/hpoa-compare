@@ -173,18 +173,29 @@ def build() -> None:
         "more_general": sum(c.more_general for c in exact_comps),
     }
 
+    # Browser data includes dismech-only diseases (no HPOA counterpart) so every
+    # dismech disease is findable; they are not in the overlap aggregates above.
+    dismech_only_comps = [
+        metrics.compare_disease(
+            d, _label(d), [], dis_terms[d], set(), hpo,
+            match_type="dismech-only", n_hpoa_nodes=0,
+        )
+        for d in sorted(dismech_only)
+    ]
+    browser = sorted(comparisons + dismech_only_comps, key=lambda c: c.mondo)
+
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     click.echo("writing artifacts...")
     _write("coverage.json", coverage)
     _write("aggregates.json", aggregates)
-    _write("per_disease.json", [c.to_row() for c in comparisons])
+    _write("per_disease.json", [c.to_row() for c in browser])
     _write("disease_coverage.json", disease_coverage)
 
     click.echo(
         f"\nMONDO coverage: {len(exact_shared)} exact-shared + {len(lineage_comps)} "
         f"lineage-shared | {len(dismech_only)} dismech-only | {len(hpoa_only)} HPOA-only\n"
-        f"phenotype (exact matches): closure micro-F1 "
-        f"{aggregates['closure']['micro']['f1']} (exact {aggregates['exact']['micro']['f1']})"
+        f"phenotype overlap (exact disease matches): closure Jaccard "
+        f"{aggregates['closure']['micro']['jaccard']} (exact {aggregates['exact']['micro']['jaccard']})"
     )
 
 

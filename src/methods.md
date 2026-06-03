@@ -1,5 +1,20 @@
 # Methods
 
+## Two resources, not a benchmark
+
+dismech and HPOA are **independently-built disease–phenotype resources** with
+different goals, scope, and method. HPOA is the established HPO annotation set —
+exhaustive per disease, derived from literature, registries and Orphanet, organized
+around OMIM/Orphanet (rare-disease-centric). dismech is a newer, mechanism-driven,
+MONDO-centric knowledge base — selective, focused on disease mechanism, and
+extending to common and acquired disease beyond HPOA's scope.
+
+Neither is treated as ground truth. This is a **symmetric comparison**: where they
+overlap, and what each holds uniquely. A difference is a difference in approach, with
+trade-offs on both sides — not an error in either. Accordingly the metrics are
+order-free (Jaccard overlap) or reported in **both** directions, never as
+"precision/recall against a gold standard."
+
 ## Vocabulary
 
 Three units, kept distinct throughout:
@@ -13,7 +28,7 @@ Three units, kept distinct throughout:
 Per-disease counts (`dismech` / `HPOA phenotypes`, novel, missing) are **phenotypes
 for that one disease**. The pooled totals on [novel & missing](./diff) are
 **associations** — the same phenotype recurs across many diseases, so they are not a
-count of distinct phenotypes. Precision / recall / F1 are computed over a disease's
+count of distinct phenotypes. The overlap measures are computed over a disease's
 **phenotype set**.
 
 ## What's being compared
@@ -21,7 +36,7 @@ count of distinct phenotypes. Precision / recall / F1 are computed over a diseas
 - **dismech** — `phenotype.dismech.hpoa`, the HPOA-extended export from
   [monarch-initiative/dismech](https://github.com/monarch-initiative/dismech).
   MONDO-anchored; one row per (phenotype, evidence) pair.
-- **HPOA** — HPO's gold-standard `phenotype.hpoa`. Keyed by OMIM / ORPHA /
+- **HPOA** — HPO's established `phenotype.hpoa` annotation set. Keyed by OMIM / ORPHA /
   DECIPHER.
 
 Both are pinned with version + sha256 in [`data/MANIFEST.yaml`](https://github.com/kevinschaper/hpoa-compare/blob/main/data/MANIFEST.yaml).
@@ -68,46 +83,56 @@ common-ancestor / disease-similarity pass would address siblings — future work
 
 ## Phenotype axis — hierarchy-aware
 
-Comparing exact HP IDs badly undercounts agreement, because dismech and HPOA
-frequently annotate the same lineage at different depths. So the headline metric
-expands both term sets to their **reflexive is-a closure**, capped at
-`HP:0000118` (phenotypic abnormality), then computes precision / recall / F1 /
-Jaccard on the closures. Exact-ID scores are reported alongside as a floor.
+Comparing exact HP IDs understates overlap, because the two resources frequently
+annotate the same lineage at different depths. So the headline measure expands both
+term sets to their **reflexive is-a closure**, capped at `HP:0000118` (phenotypic
+abnormality), and reports overlap on the closures three ways:
 
-Closures and similarity come from a semantic-SQL build of HPO (`entailed_edge`
-gives the transitive is-a closure directly).
+- **Jaccard** — `|∩| / |∪|`, order-free overlap;
+- **of dismech ⊂ HPOA** — the share of dismech's phenotypes also in HPOA;
+- **of HPOA ⊂ dismech** — the share of HPOA's phenotypes also in dismech.
 
-### Term-level differences
+The two directional shares are deliberately asymmetric — they characterize how the
+resources differ in breadth, not how well one matches the other. Exact-ID overlap is
+reported alongside as a lower bound. Closures come from a semantic-SQL build of HPO
+(`entailed_edge` gives the transitive is-a closure directly).
 
-- **Novel** (dismech only): a dismech term that is neither an ancestor nor a
-  descendant of any HPOA term for that disease.
-- **Missing** (HPOA only): the converse.
-- **Specificity tilt**: among agreeing dismech terms, how many are strictly
-  *below* a matching HPOA term (finer) vs strictly *above* it (coarser).
+### Per-disease phenotype groups
+
+- **In common**: phenotypes both resources assert (same HP id).
+- **Unique to dismech**: a dismech phenotype that is neither an ancestor nor a
+  descendant of any HPOA phenotype for that disease.
+- **Unique to HPOA**: the converse.
+- **Specificity tilt**: among phenotypes on a shared lineage, how many are strictly
+  *finer* in dismech vs strictly *coarser*.
 
 ### Structure-based information content
 
 The secondary Resnik best-match-average uses **structure-based IC**:
 `−log₂(|descendants(t)| / |universe|)` over the phenotypic-abnormality subtree.
-It's deliberately independent of either annotation corpus, so "agreement" isn't
-biased toward HPOA's (or dismech's) term-frequency distribution.
+It's deliberately independent of either resource, so overlap isn't biased toward
+either one's term-frequency distribution. (Note: this descendant-count IC saturates
+for leaf terms, so the per-disease phenotype lists are ranked by **depth** instead.)
 
 ## Scoping decisions
 
 - Only `aspect = P` (phenotypic abnormality) HPOA rows; inheritance / clinical-course /
   modifier rows are excluded.
-- Positive associations only for the overlap metrics; `NOT`-qualified rows are
+- Positive associations only for the overlap measures; `NOT`-qualified rows are
   held aside for a future contradiction analysis.
-- dismech's untyped `DISMECH:` synthetic CURIEs are excluded from term metrics
-  (they have no HPO identity); the share that are HP-typed is reported as
-  **term comparability**.
+- dismech's untyped `DISMECH:` synthetic CURIEs are excluded from phenotype-set
+  measures (they have no HPO identity); the **phenotype-typed** share is reported.
 - dismech's MONDO-typed comorbidity sidecar is not part of `phenotype.hpoa` and
   is not compared.
+- **Frequency is not yet compared.** Where both resources assert the same
+  phenotype, they may still disagree on *how often* it occurs — a planned measure
+  (it needs frequency normalization across both encodings).
 
 ## Caveats
 
-- **Recall is structurally low**: HPOA is exhaustive per disease; dismech is
-  curated-selective. Low recall is expected and is a property of intent, not an
-  error — read precision and the novel/missing lists alongside it.
+- **The two resources differ in breadth by design.** HPOA is exhaustive per
+  disease; dismech is selective and mechanism-focused. So "of HPOA ⊂ dismech" is
+  low and "of dismech ⊂ HPOA" is high — this is the signature of a selective
+  resource beside an exhaustive one, not a quality judgement on either.
 - Union-over-exactMatch can pool a broad MONDO grouping against several specific
-  OMIM entries; the per-disease table shows the mapped IDs so this is visible.
+  OMIM entries; the per-disease cards show the mapped IDs so this is visible.

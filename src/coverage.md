@@ -28,7 +28,7 @@ const dc = await FileAttachment("data/disease_coverage.json").json();
     ${coverage.dismech_only_beyond_omim_orpha} with no OMIM/ORPHA xref
   </div>
   <div class="card">
-    <h2>HPOA-only (gaps)</h2>
+    <h2>Unique to HPOA</h2>
     <span class="big">${coverage.hpoa_only.toLocaleString()}</span>
     no dismech disease within 2 hops
   </div>
@@ -126,10 +126,12 @@ Inputs.table(onlySearch, {
 })
 ```
 
-## Coverage gaps — what dismech isn't covering yet
+## Diseases unique to HPOA
 
-MONDO diseases HPOA characterizes but dismech hasn't (and that aren't within 2 hops
-of a dismech disease), ranked by HPOA annotation richness — a prioritized backlog.
+MONDO diseases HPOA characterizes that dismech doesn't (and that aren't within 2 hops
+of a dismech disease), ranked by HPOA annotation richness. This reflects the
+resources' different scope — HPOA is exhaustive across rare disease — and can guide
+curation prioritisation; it isn't a deficiency in dismech.
 
 ```js
 const gaps = dc.hpoa_only.map((r) => ({

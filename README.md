@@ -1,21 +1,25 @@
 # hpoa-compare
 
-Hierarchy-aware comparison of [dismech](https://github.com/monarch-initiative/dismech)'s
-`phenotype.dismech.hpoa` export against HPO's gold-standard `phenotype.hpoa`,
-reconciled on the disease axis through MONDO SSSOM and rendered as a static
+Hierarchy-aware, **symmetric** comparison of two independently-built
+disease–phenotype resources: [dismech](https://github.com/monarch-initiative/dismech)'s
+`phenotype.dismech.hpoa` export and HPO's established `phenotype.hpoa`. Reconciled on
+the disease axis through MONDO SSSOM and rendered as a static
 [Observable Framework](https://observablehq.com/framework/) site.
+
+Neither resource is treated as ground truth — the goal is to characterize where they
+overlap and what each holds uniquely, not to score dismech against HPOA.
 
 ## What it measures
 
-- **Coverage** — how much of dismech maps (via `skos:exactMatch`) to a disease
-  present in HPOA, and how much is HP-typed vs `DISMECH:` synthetic.
-- **Agreement** — exact-ID vs **ancestor-closure** precision/recall/F1 (the
-  headline; closure credits agreement anywhere along an is-a lineage), plus a
-  structure-IC Resnik best-match-average.
-- **The actionable diff** — per disease: novel dismech terms, missing HPOA
-  terms, and whether dismech trends finer or coarser than HPOA.
+- **Coverage** — which MONDO diseases each resource covers (shared, dismech-only,
+  HPOA-only), MONDO is-a–aware.
+- **Overlap** — exact-ID vs **ancestor-closure** Jaccard plus the two directional
+  shares (*of dismech ⊂ HPOA*, *of HPOA ⊂ dismech*), and a structure-IC Resnik
+  best-match-average. Closure credits agreement anywhere along an is-a lineage.
+- **Per disease** — phenotypes in common, unique to dismech, and unique to HPOA;
+  whether dismech trends finer or coarser.
 
-See [`src/methods.md`](src/methods.md) for the full methodology and scoping.
+See [`src/methods.md`](src/methods.md) for the framing, methodology, and scoping.
 
 ## Layout
 

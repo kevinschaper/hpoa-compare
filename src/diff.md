@@ -1,10 +1,11 @@
-# Novel & missing
+# Unique to each
 
-These are **disease–phenotype associations** — each row is one *(disease,
-phenotype)* pair, the unit HPOA annotates. **Novel** = dismech asserts a phenotype
-for a disease where HPOA has no ancestor or descendant of it (a candidate new
-association, or a curation error to check). **Missing** = HPOA asserts it and
-dismech has no ancestor/descendant (a recall gap).
+What each resource holds that the other doesn't — useful for understanding their
+different scope. Each row is a **disease–phenotype association**, one *(disease,
+phenotype)* pair. **Unique to dismech** = dismech asserts a phenotype for a disease
+where HPOA has no ancestor or descendant of it. **Unique to HPOA** = the converse.
+Each reflects the resources' different goals and coverage; neither side is presumed
+correct.
 
 The same **phenotype** (HP term) recurs across many diseases, so the totals below
 count *associations*, not distinct phenotypes — both numbers are shown so the
@@ -38,7 +39,7 @@ const uniq = (rows, k) => new Set(rows.map((r) => r[k])).size;
   </div>
 </div>
 
-## Novel associations — dismech asserts, HPOA doesn't
+## Unique to dismech — dismech asserts, HPOA doesn't
 
 ```js
 const novelSearch = view(Inputs.search(novel, {placeholder: "search by disease or phenotype…"}));
@@ -57,7 +58,7 @@ Inputs.table(novelSearch, {
 })
 ```
 
-## Missing associations — HPOA asserts, dismech doesn't
+## Unique to HPOA — HPOA asserts, dismech doesn't
 
 ```js
 const missingSearch = view(Inputs.search(missing, {placeholder: "search by disease or phenotype…"}));
@@ -80,7 +81,7 @@ Inputs.table(missingSearch, {
 
 Counts pool every matched disease, including **lineage** (grouping) matches whose
 HPOA side is the union of subtype annotations — so a broad dismech grouping inflates
-its *missing* list. Filter on the [per-disease](./diseases) page to read a single
-disease in isolation.
+its *unique-to-HPOA* list. Open a single disease on the [per-disease](./diseases)
+page (which also shows the phenotypes **in common**) to read it in isolation.
 
 </div>
