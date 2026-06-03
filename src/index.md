@@ -20,9 +20,9 @@ const scored = perDisease.filter((d) => d.match_type === "exact");
     exact MONDO; +${coverage.lineage_shared} lineage (<a href="./coverage">coverage →</a>)
   </div>
   <div class="card">
-    <h2>Term comparability</h2>
+    <h2>Phenotype-typed</h2>
     <span class="big">${(coverage.term_comparability * 100).toFixed(0)}%</span>
-    of dismech rows are HP-typed (rest are <code>DISMECH:</code> synthetics)
+    of dismech annotations carry an HP phenotype (rest are <code>DISMECH:</code> synthetics)
   </div>
   <div class="card">
     <h2>Closure micro-F1</h2>

@@ -1,5 +1,21 @@
 # Methods
 
+## Vocabulary
+
+Three units, kept distinct throughout:
+
+- **disease** — a MONDO term (a card / row).
+- **phenotype** — an HP term.
+- **annotation** (disease–phenotype association) — the *pair* linking a disease to a
+  phenotype; HPOA's fundamental row. dismech may carry several evidence rows per
+  association.
+
+Per-disease counts (`dismech` / `HPOA phenotypes`, novel, missing) are **phenotypes
+for that one disease**. The pooled totals on [novel & missing](./diff) are
+**associations** — the same phenotype recurs across many diseases, so they are not a
+count of distinct phenotypes. Precision / recall / F1 are computed over a disease's
+**phenotype set**.
+
 ## What's being compared
 
 - **dismech** — `phenotype.dismech.hpoa`, the HPOA-extended export from

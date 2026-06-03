@@ -112,14 +112,14 @@ beyond HPOA's rare-disease scope, e.g. common/acquired disease).
 
 ```js
 const dismechOnly = dc.dismech_only.map((r) => ({
-  disease: r.label, mondo: r.mondo, terms: r.n_terms, directXref: r.beyond_omim_orpha ? "no" : "yes",
+  disease: r.label, mondo: r.mondo, phenotypes: r.n_terms, directXref: r.beyond_omim_orpha ? "no" : "yes",
 }));
 const onlySearch = view(Inputs.search(dismechOnly, {placeholder: "search dismech-only…"}));
 ```
 
 ```js
 Inputs.table(onlySearch, {
-  sort: "terms",
+  sort: "phenotypes",
   reverse: true,
   format: {mondo: (id) => htl.html`<a href=https://monarchinitiative.org/${id} target=_blank>${id}</a>`},
   width: {disease: 300},
@@ -133,14 +133,14 @@ of a dismech disease), ranked by HPOA annotation richness — a prioritized back
 
 ```js
 const gaps = dc.hpoa_only.map((r) => ({
-  disease: r.label, mondo: r.mondo, hpoaTerms: r.n_terms, sources: r.hpoa_ids.join(", "),
+  disease: r.label, mondo: r.mondo, phenotypes: r.n_terms, sources: r.hpoa_ids.join(", "),
 }));
 const gapSearch = view(Inputs.search(gaps, {placeholder: "search coverage gaps…"}));
 ```
 
 ```js
 Inputs.table(gapSearch, {
-  sort: "hpoaTerms",
+  sort: "phenotypes",
   reverse: true,
   format: {mondo: (id) => htl.html`<a href=https://monarchinitiative.org/${id} target=_blank>${id}</a>`},
   width: {disease: 300},
