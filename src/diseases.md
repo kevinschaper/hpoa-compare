@@ -2,13 +2,14 @@
 
 Every dismech **disease** (MONDO) — including those with no HPOA counterpart — as a
 browsable index. Search or sort, then **click a card to expand its mini disease
-page**: the phenotypes the two resources hold **in common**, and those **unique to
-each**, inline. Counts here are phenotypes *for that one disease*; neither resource
-is treated as correct.
+page**: the phenotypes the two resources hold **in common** (with each side's
+frequency band, red when they differ), and those **unique to each**, inline. Counts
+here are phenotypes *for that one disease*; neither resource is treated as correct.
 
 ```js
 const perDisease = await FileAttachment("data/per_disease.json").json();
 const MATCH_COLORS = {exact: "#4269d0", descendant: "#3ca951", ancestor: "#efb118", mixed: "#ff725c", "dismech-only": "#a463f2"};
+const BAND = {"HP:0040280": "Obligate", "HP:0040281": "Very frequent", "HP:0040282": "Frequent", "HP:0040283": "Occasional", "HP:0040284": "Very rare", "HP:0040285": "Excluded"};
 ```
 
 <style>
@@ -37,6 +38,8 @@ const MATCH_COLORS = {exact: "#4269d0", descendant: "#3ca951", ancestor: "#efb11
 .mbar-v { width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
 .termlist { margin: 0; padding-left: 1.1rem; font-size: .8rem; columns: 1; }
 .termlist li { margin: .12rem 0; }
+.freq { font-size: .68rem; color: var(--theme-foreground-muted); white-space: nowrap; }
+.freq-diff { color: #e15759; font-weight: 600; }
 .dmeta { font-size: .76rem; color: var(--theme-foreground-muted); margin-top: .2rem; }
 </style>
 
@@ -86,6 +89,18 @@ function termList(terms) {
   )}</ul>`;
 }
 
+function sharedList(terms) {
+  if (!terms.length) return html`<div class="muted" style="font-size:.8rem">none</div>`;
+  return html`<ul class="termlist">${terms.map((t) => {
+    const db = t.dismech_band, hb = t.hpoa_band;
+    const diff = db && hb && db !== hb;
+    const freq = db || hb
+      ? html`<span class=${`freq ${diff ? "freq-diff" : ""}`} title="dismech / HPOA frequency band">${db ? BAND[db] : "—"} / ${hb ? BAND[hb] : "—"}</span>`
+      : "";
+    return html`<li><a href=${`https://hpo.jax.org/browse/term/${t.id}`} target=_blank>${t.label}</a> ${freq}</li>`;
+  })}</ul>`;
+}
+
 function diseaseDetail(d) {
   const c = MATCH_COLORS[d.match_type];
   const isOnly = d.match_type === "dismech-only";
@@ -103,7 +118,7 @@ function diseaseDetail(d) {
           <div class="muted" style="font-size:.72rem;margin-top:.2rem">Jaccard overlap; the two shares read "of dismech's phenotypes, this fraction is also in HPOA" and vice-versa. Exact-ID overlap ${d.exact.jaccard.toFixed(2)} — hierarchy-aware credits agreement along the is-a lineage.</div>
         </div>`}
     <div class=${isOnly ? "" : "three-col"}>
-      ${isOnly ? "" : html`<div><h3>In common · ${d.n_shared}</h3>${termList(d.shared_terms)}</div>`}
+      ${isOnly ? "" : html`<div><h3>In common · ${d.n_shared}</h3>${sharedList(d.shared_terms)}</div>`}
       <div><h3>${isOnly ? "dismech phenotypes" : "Unique to dismech"} · ${d.n_novel}</h3>${termList(d.novel_terms)}</div>
       ${isOnly ? "" : html`<div><h3>Unique to HPOA · ${d.n_missing}</h3>${termList(d.missing_terms)}</div>`}
     </div>

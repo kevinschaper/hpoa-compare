@@ -7,6 +7,7 @@ export default {
     {name: "Disease coverage", path: "/coverage"},
     {name: "Per-disease", path: "/diseases"},
     {name: "Unique to each", path: "/diff"},
+    {name: "Frequency", path: "/frequency"},
     {name: "Methods", path: "/methods"},
   ],
   header: "dismech ↔ HPOA — hierarchy-aware phenotype comparison",

@@ -66,3 +66,22 @@ def disease_to_not_terms(df: pd.DataFrame) -> dict[str, set[str]]:
 
 def disease_labels(df: pd.DataFrame) -> dict[str, str]:
     return dict(zip(df["database_id"], df["disease_name"]))
+
+
+def disease_phenotype_frequency(df: pd.DataFrame) -> dict[tuple[str, str], str]:
+    """``{(disease_id, hpo_id): raw_frequency}`` for positive P-aspect HP rows.
+
+    Keeps the first non-empty frequency seen for each (disease, phenotype) pair.
+    """
+    out: dict[tuple[str, str], str] = {}
+    for row in df.itertuples(index=False):
+        if getattr(row, "aspect", "") != "P" or getattr(row, "qualifier", "") == "NOT":
+            continue
+        hp = getattr(row, "hpo_id", "")
+        if not hp.startswith("HP:"):
+            continue
+        freq = (getattr(row, "frequency", "") or "").strip()
+        key = (row.database_id, hp)
+        if freq and key not in out:
+            out[key] = freq
+    return out

@@ -86,6 +86,8 @@ def compare_disease(
     *,
     match_type: str = "exact",
     n_hpoa_nodes: int = 1,
+    dismech_bands: dict[str, str] | None = None,
+    hpoa_bands: dict[str, str] | None = None,
     keep_diffs: bool = True,
     diff_cap: int = 25,
 ) -> DiseaseComparison:
@@ -114,6 +116,13 @@ def compare_disease(
         )
         return ranked[:diff_cap]  # full counts live in n_novel / n_missing
 
+    def _shared_terms(ids: set[str]) -> list[dict]:
+        rows = _terms(ids)
+        for r in rows:
+            r["dismech_band"] = (dismech_bands or {}).get(r["id"])
+            r["hpoa_band"] = (hpoa_bands or {}).get(r["id"])
+        return rows
+
     return DiseaseComparison(
         mondo=mondo,
         label=label,
@@ -130,7 +139,7 @@ def compare_disease(
         more_specific=more_specific,
         more_general=more_general,
         resnik_bma=_resnik_bma(dismech_terms, hpoa_terms, hpo),
-        shared_terms=_terms(shared) if keep_diffs else [],
+        shared_terms=_shared_terms(shared) if keep_diffs else [],
         novel_terms=_terms(novel) if keep_diffs else [],
         missing_terms=_terms(missing) if keep_diffs else [],
     )

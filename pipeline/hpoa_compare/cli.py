@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import json
+from collections import Counter, defaultdict
 from pathlib import Path
 
 import click
 
+from . import frequency as freq
 from . import load, mapping, metrics
 from .hpo import HpoGraph
 from .mondo import MondoGraph
@@ -60,6 +62,26 @@ def build() -> None:
     # Lift HPOA up into MONDO space (obsolete targets redirected to live terms).
     hpoa_mondo_terms, hpoa_mondo_ids = mapping.lift_hpoa_to_mondo(jax_terms, dmap, replaced_by)
 
+    # Frequency bands per (MONDO disease, phenotype), flattened to HP bands so the
+    # two sides can be compared. dismech: direct; HPOA: mode across the OMIM/ORPHA
+    # ids that lift to a MONDO (obsolete resolved).
+    dismech_bands: dict[str, dict[str, str]] = defaultdict(dict)
+    for (m, hp), raw in load.disease_phenotype_frequency(dis).items():
+        band = freq.to_band(raw)
+        if band:
+            dismech_bands[mapping.resolve_obsolete(m, replaced_by)][hp] = band
+    _hpoa_band_votes: dict[str, dict[str, Counter]] = defaultdict(lambda: defaultdict(Counter))
+    for (hid, hp), raw in load.disease_phenotype_frequency(jax).items():
+        band = freq.to_band(raw)
+        if not band:
+            continue
+        for m in dmap.hpoa_to_mondo.get(hid, ()):
+            _hpoa_band_votes[mapping.resolve_obsolete(m, replaced_by)][hp][band] += 1
+    hpoa_bands: dict[str, dict[str, str]] = {
+        m: {hp: votes.most_common(1)[0][0] for hp, votes in hps.items()}
+        for m, hps in _hpoa_band_votes.items()
+    }
+
     # Exclude the ontology root and other non-disease groupings that would sweep
     # in the entire subtree as "covered".
     NON_DISEASE = {"MONDO:0000001"}  # "disease" (root)
@@ -98,10 +120,14 @@ def build() -> None:
         covered_hpoa |= h_match
         h_terms: set[str] = set().union(*(hpoa_mondo_terms[h] for h in h_match))
         h_ids = sorted(set().union(*(hpoa_mondo_ids[h] for h in h_match)))
+        # frequency bands are meaningful only for exact matches, where the HPOA
+        # node is the MONDO itself (lineage aggregates subtype frequencies).
         comparisons.append(
             metrics.compare_disease(
                 d, _label(d), h_ids, dis_terms[d], h_terms, hpo,
                 match_type=match_type, n_hpoa_nodes=len(h_match),
+                dismech_bands=dismech_bands.get(d) if match_type == "exact" else None,
+                hpoa_bands=hpoa_bands.get(d) if match_type == "exact" else None,
             )
         )
     comparisons.sort(key=lambda c: (c.closure.f1, c.mondo))
@@ -173,6 +199,37 @@ def build() -> None:
         "more_general": sum(c.more_general for c in exact_comps),
     }
 
+    # --- frequency concordance on shared phenotypes (exact disease matches) ---
+    fc: Counter = Counter()
+    freq_disagreements: list[dict] = []
+    for c in exact_comps:
+        for t in c.shared_terms:
+            db, hb = t.get("dismech_band"), t.get("hpoa_band")
+            if db and hb:
+                dist = freq.distance(db, hb)
+                fc["same" if dist == 0 else "adjacent" if dist == 1 else "disagree"] += 1
+                if dist >= 1:
+                    freq_disagreements.append({
+                        "mondo": c.mondo, "disease": c.label,
+                        "phenotype": t["id"], "label": t["label"],
+                        "dismech": freq.BAND_LABEL[db], "hpoa": freq.BAND_LABEL[hb],
+                        "distance": dist,
+                    })
+            elif db or hb:
+                fc["one_side"] += 1
+            else:
+                fc["neither"] += 1
+    freq_disagreements.sort(key=lambda r: (-r["distance"], r["mondo"], r["phenotype"]))
+    frequency_report = {
+        "band_order": [freq.BAND_LABEL[b] for b in freq.BANDS],
+        "summary": {
+            "same": fc["same"], "adjacent": fc["adjacent"], "disagree": fc["disagree"],
+            "one_side_only": fc["one_side"], "neither_specified": fc["neither"],
+            "both_specified": fc["same"] + fc["adjacent"] + fc["disagree"],
+        },
+        "disagreements": freq_disagreements,
+    }
+
     # Browser data includes dismech-only diseases (no HPOA counterpart) so every
     # dismech disease is findable; they are not in the overlap aggregates above.
     dismech_only_comps = [
@@ -190,6 +247,7 @@ def build() -> None:
     _write("aggregates.json", aggregates)
     _write("per_disease.json", [c.to_row() for c in browser])
     _write("disease_coverage.json", disease_coverage)
+    _write("frequency.json", frequency_report)
 
     click.echo(
         f"\nMONDO coverage: {len(exact_shared)} exact-shared + {len(lineage_comps)} "

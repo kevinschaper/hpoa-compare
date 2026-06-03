@@ -124,9 +124,13 @@ for leaf terms, so the per-disease phenotype lists are ranked by **depth** inste
   measures (they have no HPO identity); the **phenotype-typed** share is reported.
 - dismech's MONDO-typed comorbidity sidecar is not part of `phenotype.hpoa` and
   is not compared.
-- **Frequency is not yet compared.** Where both resources assert the same
-  phenotype, they may still disagree on *how often* it occurs — a planned measure
-  (it needs frequency normalization across both encodings).
+- **Frequency** ([frequency](./frequency)): where both resources assert the same
+  phenotype, each side's frequency (HP term / percentage / `n/m` ratio) is flattened
+  to one of the six HP frequency bands and the bands are compared. Done on shared
+  phenotypes of exact disease matches only (lineage matches aggregate subtype
+  frequencies). HPOA's frequency is the modal band across the OMIM/ORPHA ids that
+  lift to a MONDO. Caveat: small-cohort ratios (`1/1` → Obligate) can overstate the
+  extremes.
 
 ## Caveats
 
