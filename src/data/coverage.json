@@ -1,11 +1,13 @@
 {
-  "dismech_diseases": 1070,
+  "dismech_diseases": 1069,
   "hpoa_diseases_mondo": 10731,
   "hpoa_diseases_raw": 12971,
-  "comparable": 682,
-  "dismech_only": 388,
-  "dismech_only_beyond_omim_orpha": 227,
-  "hpoa_only": 10049,
+  "exact_shared": 683,
+  "lineage_shared": 198,
+  "dismech_only": 188,
+  "dismech_only_beyond_omim_orpha": 135,
+  "hpoa_lineage_covered": 1464,
+  "hpoa_only": 8584,
   "dismech_rows_hp": 14351,
   "dismech_rows_synthetic": 338,
   "term_comparability": 0.977

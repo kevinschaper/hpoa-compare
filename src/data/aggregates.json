@@ -1,31 +1,33 @@
 {
-  "n_comparable": 682,
+  "n_scored_exact": 683,
+  "n_lineage": 198,
+  "scored_set": "exact MONDO matches",
   "exact": {
     "micro": {
-      "precision": 0.6995,
-      "recall": 0.2048,
-      "f1": 0.3168
+      "precision": 0.7009,
+      "recall": 0.2061,
+      "f1": 0.3185
     },
     "macro": {
-      "precision": 0.6098,
-      "recall": 0.2487,
-      "f1": 0.3087
+      "precision": 0.6103,
+      "recall": 0.2498,
+      "f1": 0.3097
     }
   },
   "closure": {
     "micro": {
-      "precision": 0.8554,
-      "recall": 0.3184,
-      "f1": 0.4641
+      "precision": 0.8559,
+      "recall": 0.3194,
+      "f1": 0.4652
     },
     "macro": {
-      "precision": 0.8289,
-      "recall": 0.3881,
-      "f1": 0.4723
+      "precision": 0.8291,
+      "recall": 0.389,
+      "f1": 0.473
     }
   },
-  "total_novel": 1431,
+  "total_novel": 1433,
   "total_missing": 18827,
-  "more_specific": 1608,
-  "more_general": 1275
+  "more_specific": 1619,
+  "more_general": 1283
 }

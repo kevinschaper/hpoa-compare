@@ -64,20 +64,40 @@ def load_disease_map(
     return DiseaseMap(dict(m2h), dict(h2m), labels)
 
 
+def load_replaced_by(path: str | Path) -> dict[str, str]:
+    """Load obsolete-MONDO -> replacement-MONDO from the derived TSV."""
+    df = pd.read_csv(path, sep="\t", dtype=str, keep_default_na=False)
+    return dict(zip(df["obsolete"], df["replacement"]))
+
+
+def resolve_obsolete(mondo: str, replaced_by: dict[str, str]) -> str:
+    """Follow ``replaced_by`` to the live term (chain-safe)."""
+    seen: set[str] = set()
+    while mondo in replaced_by and mondo not in seen:
+        seen.add(mondo)
+        mondo = replaced_by[mondo]
+    return mondo
+
+
 def lift_hpoa_to_mondo(
     hpoa_terms: dict[str, set[str]],
     dmap: DiseaseMap,
+    replaced_by: dict[str, str] | None = None,
 ) -> tuple[dict[str, set[str]], dict[str, set[str]]]:
     """Express HPOA annotations in MONDO space.
 
     Returns ``(mondo_terms, mondo_source_ids)`` where annotations from every
     OMIM/ORPHA/DECIPHER disease are unioned onto the MONDO term(s) they
-    exact-match.
+    exact-match. Obsolete MONDO targets are redirected to their replacement so
+    a stale SSSOM mapping (e.g. an OMIM still pointing at an obsoleted term)
+    lands on the live disease.
     """
+    replaced_by = replaced_by or {}
     mondo_terms: dict[str, set[str]] = defaultdict(set)
     mondo_ids: dict[str, set[str]] = defaultdict(set)
     for hpoa_id, terms in hpoa_terms.items():
         for mondo in dmap.hpoa_to_mondo.get(hpoa_id, ()):
+            mondo = resolve_obsolete(mondo, replaced_by)
             mondo_terms[mondo] |= terms
             mondo_ids[mondo].add(hpoa_id)
     return dict(mondo_terms), dict(mondo_ids)

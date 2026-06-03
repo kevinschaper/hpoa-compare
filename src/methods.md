@@ -26,11 +26,29 @@ dismech deliberately curates beyond OMIM/ORPHA (common, acquired, infectious
 disease), so dismech-only is **coverage that extends HPOA**, not a deficiency.
 See [disease coverage](./coverage).
 
-**Known limitation — MONDO grouping granularity.** Matching is currently on the
-exact MONDO node. A dismech entry at a MONDO *grouping* term and an HPOA
-annotation on a *child* MONDO land on different nodes and read as non-overlapping.
-A MONDO is-a–closure pass on the disease axis (mirroring the phenotype axis) is a
-planned refinement.
+### Disease-axis is-a matching
+
+Matching is **MONDO is-a–aware**, mirroring the phenotype axis. Using the MONDO
+graph from the release KGX (version-matched to the SSSOM; semsql lags — see
+`MANIFEST.yaml`):
+
+- **exact** — same MONDO node (these are the phenotype-scored set);
+- **lineage** — an HPOA-annotated MONDO within **2 is-a hops** up or down, so a
+  dismech grouping is reconciled with its near subtypes (and vice versa) but not
+  its whole category. Phenotypes for a lineage match union the subtype
+  annotations; the breadth (number of nodes rolled up) is reported, and these are
+  kept **out of the headline phenotype averages** to avoid grouping distortion;
+- **dismech-only / HPOA-only** — no MONDO relative within 2 hops.
+
+**Obsolete resolution.** SSSOM mappings sometimes point an OMIM/ORPHA at an
+*obsoleted* MONDO term; we redirect those to their `replaced_by` target so they
+land on the live disease (e.g. HPOA's Dravet → obsolete `MONDO:0011794` →
+`MONDO:0100135`, an exact match). The ontology root and non-disease groupings are
+excluded.
+
+**Limitations.** Lineage catches ancestor/descendant, not siblings; broad dismech
+groupings still aggregate many subtypes (visible in the breadth column). A
+common-ancestor / disease-similarity pass would address siblings — future work.
 
 ## Phenotype axis — hierarchy-aware
 

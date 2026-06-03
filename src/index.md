@@ -10,13 +10,14 @@ unioned).
 const coverage = await FileAttachment("data/coverage.json").json();
 const aggregates = await FileAttachment("data/aggregates.json").json();
 const perDisease = await FileAttachment("data/per_disease.json").json();
+const scored = perDisease.filter((d) => d.match_type === "exact");
 ```
 
 <div class="grid grid-cols-4">
   <div class="card">
-    <h2>Comparable diseases</h2>
-    <span class="big">${coverage.comparable.toLocaleString()}</span>
-    shared MONDO; ${coverage.dismech_only} dismech-only (<a href="./coverage">coverage →</a>)
+    <h2>Scored diseases</h2>
+    <span class="big">${coverage.exact_shared.toLocaleString()}</span>
+    exact MONDO; +${coverage.lineage_shared} lineage (<a href="./coverage">coverage →</a>)
   </div>
   <div class="card">
     <h2>Term comparability</h2>
@@ -76,7 +77,7 @@ Plot.plot({
   y: {label: "closure F1", domain: [0, 1]},
   marks: [
     Plot.line([[0, 0], [1, 1]], {stroke: "currentColor", strokeOpacity: 0.3, strokeDasharray: "4"}),
-    Plot.dot(perDisease, {
+    Plot.dot(scored, {
       x: (d) => d.exact.f1,
       y: (d) => d.closure.f1,
       r: 3,
@@ -97,7 +98,7 @@ Plot.plot({
   x: {label: "closure F1", domain: [0, 1]},
   y: {label: "diseases", grid: true},
   marks: [
-    Plot.rectY(perDisease, Plot.binX({y: "count"}, {x: (d) => d.closure.f1, thresholds: 20, fill: "#4269d0"})),
+    Plot.rectY(scored, Plot.binX({y: "count"}, {x: (d) => d.closure.f1, thresholds: 20, fill: "#4269d0"})),
     Plot.ruleY([0]),
   ],
 })

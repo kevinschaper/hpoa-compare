@@ -38,6 +38,8 @@ class DiseaseComparison:
     mondo: str
     label: str
     hpoa_ids: list[str]
+    match_type: str          # exact | descendant | ancestor | mixed (MONDO lineage)
+    n_hpoa_nodes: int        # how many HPOA-annotated MONDO nodes were aggregated
     n_dismech: int
     n_hpoa: int
     exact: SetScore
@@ -80,6 +82,8 @@ def compare_disease(
     hpoa_terms: set[str],
     hpo: HpoGraph,
     *,
+    match_type: str = "exact",
+    n_hpoa_nodes: int = 1,
     keep_diffs: bool = True,
     diff_cap: int = 25,
 ) -> DiseaseComparison:
@@ -108,6 +112,8 @@ def compare_disease(
         mondo=mondo,
         label=label,
         hpoa_ids=sorted(hpoa_ids),
+        match_type=match_type,
+        n_hpoa_nodes=n_hpoa_nodes,
         n_dismech=len(dismech_terms),
         n_hpoa=len(hpoa_terms),
         exact=exact,

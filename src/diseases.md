@@ -11,6 +11,7 @@ const perDisease = await FileAttachment("data/per_disease.json").json();
 const rows = perDisease.map((d) => ({
   disease: d.label,
   mondo: d.mondo,
+  match: d.match_type,
   dismech: d.n_dismech,
   hpoa: d.n_hpoa,
   exactF1: d.exact.f1,
@@ -31,10 +32,10 @@ const search = view(Inputs.search(rows, {placeholder: "search disease or MONDOâ€
 Inputs.table(search, {
   sort: "closureF1",
   reverse: true,
-  columns: ["disease", "mondo", "dismech", "hpoa", "exactF1", "closureF1", "resnik", "novel", "missing", "finer", "coarser"],
+  columns: ["disease", "mondo", "match", "dismech", "hpoa", "exactF1", "closureF1", "resnik", "novel", "missing", "finer", "coarser"],
   header: {
     dismech: "dismech terms",
-    hpoa: "HPOA terms",
+    hpoa: "HPOA terms (agg.)",
     exactF1: "exact F1",
     closureF1: "closure F1",
     resnik: "Resnik BMA",
