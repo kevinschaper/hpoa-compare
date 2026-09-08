@@ -6,6 +6,8 @@ disease–phenotype resources: [dismech](https://github.com/monarch-initiative/d
 the disease axis through MONDO SSSOM and rendered as a static
 [Observable Framework](https://observablehq.com/framework/) site.
 
+**Live site:** <https://kevinschaper.github.io/hpoa-compare/>
+
 Neither resource is treated as ground truth — the goal is to characterize where they
 overlap and what each holds uniquely, not to score dismech against HPOA.
 
