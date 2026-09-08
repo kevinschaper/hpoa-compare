@@ -1,33 +1,33 @@
 {
-  "n_scored_exact": 683,
-  "n_lineage": 198,
+  "n_scored_exact": 1610,
+  "n_lineage": 383,
   "scored_set": "exact MONDO matches",
   "exact": {
     "micro": {
-      "jaccard": 0.1894,
-      "dismech_in_hpoa": 0.7009,
-      "hpoa_in_dismech": 0.2061
+      "jaccard": 0.184,
+      "dismech_in_hpoa": 0.6099,
+      "hpoa_in_dismech": 0.2086
     },
     "macro": {
-      "jaccard": 0.2147,
-      "dismech_in_hpoa": 0.6103,
-      "hpoa_in_dismech": 0.2498
+      "jaccard": 0.2063,
+      "dismech_in_hpoa": 0.5722,
+      "hpoa_in_dismech": 0.2582
     }
   },
   "closure": {
     "micro": {
-      "jaccard": 0.3031,
-      "dismech_in_hpoa": 0.8559,
-      "hpoa_in_dismech": 0.3194
+      "jaccard": 0.3169,
+      "dismech_in_hpoa": 0.8057,
+      "hpoa_in_dismech": 0.3432
     },
     "macro": {
-      "jaccard": 0.3407,
-      "dismech_in_hpoa": 0.8291,
-      "hpoa_in_dismech": 0.389
+      "jaccard": 0.3532,
+      "dismech_in_hpoa": 0.8008,
+      "hpoa_in_dismech": 0.4163
     }
   },
-  "total_novel": 1433,
-  "total_missing": 18827,
-  "more_specific": 1619,
-  "more_general": 1283
+  "total_novel": 5039,
+  "total_missing": 40031,
+  "more_specific": 3756,
+  "more_general": 3347
 }

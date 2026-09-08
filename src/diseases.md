@@ -8,6 +8,14 @@ here are phenotypes *for that one disease*; neither resource is treated as corre
 
 ```js
 const perDisease = await FileAttachment("data/per_disease.json").json();
+const historyTable = await FileAttachment("data/history.parquet").parquet();
+const historyByMondo = new Map();
+for (const r of historyTable) {
+  const row = {date: new Date(r.release_date), release: r.release, n_dismech: Number(r.n_dismech), n_hpoa: Number(r.n_hpoa), n_shared: Number(r.n_shared), overlap: r.closure_jaccard};
+  if (!historyByMondo.has(r.mondo)) historyByMondo.set(r.mondo, []);
+  historyByMondo.get(r.mondo).push(row);
+}
+for (const rows of historyByMondo.values()) rows.sort((a, b) => a.date - b.date);
 const MATCH_COLORS = {exact: "#4269d0", descendant: "#3ca951", ancestor: "#efb118", mixed: "#ff725c", "dismech-only": "#a463f2"};
 const BAND = {"HP:0040280": "Obligate", "HP:0040281": "Very frequent", "HP:0040282": "Frequent", "HP:0040283": "Occasional", "HP:0040284": "Very rare", "HP:0040285": "Excluded"};
 ```
@@ -101,6 +109,27 @@ function sharedList(terms) {
   })}</ul>`;
 }
 
+function sparkline(d) {
+  const rows = historyByMondo.get(d.mondo);
+  if (!rows || rows.length < 2) return "";
+  const isOnly = d.match_type === "dismech-only";
+  const series = rows.flatMap((r) => [
+    {date: r.date, release: r.release, k: "dismech", n: r.n_dismech},
+    ...(isOnly ? [] : [{date: r.date, release: r.release, k: "HPOA", n: r.n_hpoa}, {date: r.date, release: r.release, k: "in common", n: r.n_shared}]),
+  ]);
+  const plot = Plot.plot({
+    width: 460, height: 110, marginLeft: 32, marginRight: 12, marginTop: 8, marginBottom: 20,
+    x: {label: null, ticks: 4}, y: {label: null, grid: true, zero: true, ticks: 3},
+    color: {domain: ["dismech", "HPOA", "in common"], range: ["#4269d0", "#ff725c", "#3ca951"]},
+    marks: [
+      Plot.lineY(series, {x: "date", y: "n", stroke: "k", strokeWidth: 1.5, curve: "step-after"}),
+      Plot.tip(series, Plot.pointerX({x: "date", y: "n", channels: {series: "k", release: "release"}})),
+    ],
+  });
+  return html`<div><h3>Across releases · ${rows.length} (${rows[0].release} → ${rows.at(-1).release})</h3>${plot}
+    <div class="muted" style="font-size:.72rem"><span style="color:#4269d0">■</span> dismech${isOnly ? "" : html` · <span style="color:#ff725c">■</span> HPOA · <span style="color:#3ca951">■</span> in common`} phenotypes per dismech release; <a href="./history">full history →</a></div></div>`;
+}
+
 function diseaseDetail(d) {
   const c = MATCH_COLORS[d.match_type];
   const isOnly = d.match_type === "dismech-only";
@@ -117,6 +146,7 @@ function diseaseDetail(d) {
           ${metricBar("of HPOA ⊂", d.closure.recall, c)}
           <div class="muted" style="font-size:.72rem;margin-top:.2rem">Jaccard overlap; the two shares read "of dismech's phenotypes, this fraction is also in HPOA" and vice-versa. Exact-ID overlap ${d.exact.jaccard.toFixed(2)} — hierarchy-aware credits agreement along the is-a lineage.</div>
         </div>`}
+    ${sparkline(d)}
     <div class=${isOnly ? "" : "three-col"}>
       ${isOnly ? "" : html`<div><h3>In common · ${d.n_shared}</h3>${sharedList(d.shared_terms)}</div>`}
       <div><h3>${isOnly ? "dismech phenotypes" : "Unique to dismech"} · ${d.n_novel}</h3>${termList(d.novel_terms)}</div>

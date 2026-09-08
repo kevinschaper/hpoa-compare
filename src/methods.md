@@ -94,8 +94,8 @@ abnormality), and reports overlap on the closures three ways:
 
 The two directional shares are deliberately asymmetric — they characterize how the
 resources differ in breadth, not how well one matches the other. Exact-ID overlap is
-reported alongside as a lower bound. Closures come from a semantic-SQL build of HPO
-(`entailed_edge` gives the transitive is-a closure directly).
+reported alongside as a lower bound. Closures are the transitive `is_a` closure of
+the release `hp.obo` (version-matched to `phenotype.hpoa`).
 
 ### Per-disease phenotype groups
 
@@ -131,6 +131,31 @@ for leaf terms, so the per-disease phenotype lists are ranked by **depth** inste
   frequencies). HPOA's frequency is the modal band across the OMIM/ORPHA ids that
   lift to a MONDO. Caveat: small-cohort ratios (`1/1` → Obligate) can overstate the
   extremes.
+
+## Release history
+
+The [over time](./history) page repeats the comparison for every dismech release.
+
+- **Snapshot** — one dismech release tag paired with the **newest HPO release on or
+  before the tag's commit date**. dismech releases roughly weekly and HPO every few
+  months, so the timeline is keyed by dismech release and HPO changes appear as
+  steps (marked on the charts).
+- **dismech per tag** — dismech releases do not ship `phenotype.dismech.hpoa`, but
+  the exporter is a pure projection of the `kb/disorders` YAML, so the *current*
+  exporter is run against each tag's knowledge base (`scripts/export_dismech_tags.sh`).
+- **Fixed axes** — the MONDO SSSOM, MONDO graph, obsolete map and `hp.obo` are held
+  at their current release for every snapshot. The series therefore measure
+  *annotation* change, not ontology drift; a MONDO or HPO update can still move
+  every point when the history is rebuilt, which is why per-release results carry
+  the fingerprint of the fixed inputs and are recomputed when it changes.
+- **What is tracked** — per release: the coverage counts and pooled overlap
+  measures above; per disease and release: phenotype counts on each side, in
+  common / unique to each, the exact and hierarchy-aware overlap measures, and
+  Resnik. Term-level lists are kept for the current release only. HPOA-only
+  diseases are counted per release but not tracked individually.
+- **Storage** — per-release results are Parquet files committed under
+  `data/history/`, combined with DuckDB into one `history.parquet` that the page
+  queries in the browser with DuckDB-Wasm.
 
 ## Caveats
 

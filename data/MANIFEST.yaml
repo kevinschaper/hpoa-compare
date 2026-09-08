@@ -1,38 +1,69 @@
 # Pinned inputs for the dismech-vs-HPOA comparison.
-# Regenerate checksums after `just fetch`; commit this file so the comparison
-# is reproducible. Large input files themselves live under data/inputs/ and are
-# gitignored.
+# Regenerate checksums after `just fetch` / `just export-dismech`; commit this file
+# so the comparison is reproducible. Large input files themselves live under
+# data/inputs/ and are gitignored.
+#
+# Two kinds of input:
+#   * FIXED across the release history (MONDO map + graph, hp.obo): the disease
+#     and phenotype axes are held at one current release for every snapshot so
+#     the time series reflects annotation change, not ontology drift.
+#   * PER-RELEASE (phenotype.hpoa per HPO release; phenotype.dismech.hpoa per
+#     dismech tag): one snapshot = one dismech tag paired with the newest HPO
+#     release on or before the tag's commit date (see `hpoa-compare history`).
 inputs:
   hpoa_jax:
-    description: HPO project's phenotype.hpoa (the gold-standard reference)
+    description: HPO project's phenotype.hpoa, current release (the "now" comparison)
     url: https://github.com/obophenotype/human-phenotype-ontology/releases/latest/download/phenotype.hpoa
     filename: phenotype.hpoa
-    version: "2026-02-16"
-    sha256: 5d7aedee5f6218e9952fceba5f883df2cc4a0c1938e55d8d2616c15c517964fb
+    version: "2026-09-02"      # file #version; release tag v2026-09-01
+    sha256: e89aa39c8f97bf5a52c5d160f9250a603681d630ade8ec2679d84ac5aece1f72
+
+  hpoa_releases:
+    description: >-
+      Every HPO release whose phenotype.hpoa is needed to pair with a dismech tag
+      (dismech's first tag is 2025-12-12). Fetched to data/inputs/hpoa/<release>/.
+    url_template: https://github.com/obophenotype/human-phenotype-ontology/releases/download/v{release}/phenotype.hpoa
+    releases:
+      "2025-11-24": 1f161ec53897d54abc87a817cf08e722dfddbf34d4eb9bba74f260b074451aad
+      "2026-01-08": 506d358590b0f0367cd09332bba73a95cd753cd281a9ecaee00a655ced82e422
+      "2026-02-16": 5d7aedee5f6218e9952fceba5f883df2cc4a0c1938e55d8d2616c15c517964fb
+      "2026-06-06": 9e10da9c4b92c2d58f65e2fbd005a8511b5bfde43dd4a026564c72cf2918fbb3
+      "2026-06-23": 89004f85b253f980ffe84218d2c080665cbf67a57bbb322111d6a2db5eb31dff
+      "2026-09-01": e89aa39c8f97bf5a52c5d160f9250a603681d630ade8ec2679d84ac5aece1f72
+
+  hp_obo:
+    description: >-
+      HPO is-a graph for the PHENOTYPE axis (transitive closure, depth, and
+      structure-based IC are derived in pipeline/hpoa_compare/hpo.py). Taken from
+      the same HPO release as the current phenotype.hpoa. Replaces the semsql
+      hp.db used originally (bbop-sqlite now returns 403). Held fixed across the
+      release history.
+    url: https://github.com/obophenotype/human-phenotype-ontology/releases/download/v2026-09-01/hp.obo
+    filename: hp.obo
+    data_version: hp/releases/2026-09-01
+    sha256: 93dace952fcb3ec4728818857f6ba76bc2d5312f4d83266519b8694b8e798f22
 
   mondo_sssom:
     description: MONDO SSSOM mappings (MONDO <-> OMIM/Orphanet/... for the disease axis)
     url: https://purl.obolibrary.org/obo/mondo/mappings/mondo.sssom.tsv
     filename: mondo.sssom.tsv
-    mondo_release: "v2026-06-02"
-    sha256: 9574e2fc0eaa6a3669f663257516592abdbedac745d1bda6e92aba74ac3123c8
+    mondo_release: "v2026-09-01"
+    sha256: 317ac4bf93be1deff4406b4d7d18bb730ead3c4f5c7c814f75d24be7f6ef302f
 
   mondo_graph:
     description: >-
       MONDO is-a graph for disease-axis closure, taken from the release's KGX
-      nodes/edges rather than semsql. The semsql mondo.db lags the OBO release
-      (bbop-sqlite was still on the 2026-05-05 build), so the KGX artifacts are
-      the freshest MONDO graph that is version-matched to mondo.sssom above.
-      ~43.9k MONDO->MONDO biolink:subclass_of edges over ~33.8k nodes.
-    mondo_release: "v2026-06-02"
+      nodes/edges rather than semsql (the semsql mondo.db lags the OBO release),
+      so it is version-matched to mondo.sssom above.
+    mondo_release: "v2026-09-01"
     edges:
       url: https://github.com/monarch-initiative/mondo/releases/latest/download/mondo_edges.tsv
       filename: mondo_edges.tsv
-      sha256: 01e7d924d93fa1cf25027a05c6dbf78e764ac5ee8b1cbe2446b5d187aca4cee5
+      sha256: d4efa50d131448792632d269fa499341debd74108243a3d79e8c6287cf12cf4b
     nodes:
       url: https://github.com/monarch-initiative/mondo/releases/latest/download/mondo_nodes.tsv
       filename: mondo_nodes.tsv
-      sha256: f7614a7de9748f2d1672bc5885362a281b7edfebb3fc0ccb9975431813cb2c69
+      sha256: c4dd473543e44ad5252aa019e11b22cc937b4d823d821ee697d6a977bf81bf61
 
   mondo_replaced_by:
     description: >-
@@ -41,25 +72,21 @@ inputs:
       an obsoleted MONDO term onto the live disease. The KGX nodes carry only a
       deprecated flag, not the replacement target, so we extract it from the obo.
       Small + stable, so committed at data/mondo_replaced_by.tsv (not gitignored).
-    mondo_release: "v2026-06-02"
+    mondo_release: "v2026-09-01"
     source: https://github.com/monarch-initiative/mondo/releases/latest/download/mondo.obo
     derived_file: data/mondo_replaced_by.tsv
 
   dismech_hpoa:
     description: >-
-      dismech's HPOA-extended export (phenotype.dismech.hpoa). Generated by
-      `dismech.export.hpoa_export` and copied in. Source commit recorded below.
+      dismech's HPOA-extended export (phenotype.dismech.hpoa), regenerated per
+      release tag by scripts/export_dismech_tags.sh: the current
+      `dismech.export.hpoa_export` (a pure kb/disorders YAML -> TSV projection,
+      on dismech main since 2026-06-03) is run against each tag's kb/ and cached
+      at data/inputs/dismech/<tag>/. data/inputs/dismech/tags.tsv records tag,
+      commit date and commit; data/inputs/phenotype.dismech.hpoa is a copy of
+      the newest tag's export. Per-release comparison results are committed
+      under data/history/<tag>.{parquet,json}.
     filename: phenotype.dismech.hpoa
     source_repo: monarch-initiative/dismech
-    source_branch: claude/hpoa-export
-    sha256: a7276222203cf9e235eed529c6eeb371dbbd8eae57a5c08380e34beeb3280f16
-
-  hpo_db:
-    description: >-
-      HPO semantic-SQL build (semsql) for the PHENOTYPE axis: transitive is-a
-      closure (entailed_edge) and structure-based IC. Fetched to data/inputs/hp.db.
-      Currency should track the phenotype.hpoa release; HP terms in annotations
-      are stable, so modest lag is tolerable -- unlike the MONDO disease graph,
-      which we pin to the release KGX above to stay version-matched to the SSSOM.
-    url: https://s3.amazonaws.com/bbop-sqlite/hp.db.gz
-    filename: hp.db
+    exporter: src/dismech/export/hpoa_export.py
+    current_tag: v0.1.39

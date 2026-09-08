@@ -1,8 +1,8 @@
 """HPO ontology access: transitive is-a closure and structure-based IC.
 
-Reads a semantic-SQL (semsql) build of HPO (``hp.db``). The ``entailed_edge``
-table already holds the transitive is-a closure, so ancestors/descendants are a
-single indexed lookup rather than a graph walk.
+Reads the release ``hp.obo`` (shipped with every HPO release alongside
+``phenotype.hpoa``, so the phenotype graph is version-matched to the annotations).
+Ancestors/descendants are the memoized transitive closure over direct ``is_a``.
 
 All closures are restricted to the *phenotypic abnormality* subtree
 (descendants of HP:0000118) so that:
@@ -14,53 +14,88 @@ All closures are restricted to the *phenotypic abnormality* subtree
 from __future__ import annotations
 
 import math
-import sqlite3
-from functools import cached_property
 from pathlib import Path
 
-IS_A = "rdfs:subClassOf"
 PHENOTYPIC_ABNORMALITY = "HP:0000118"
 
 
+def parse_obo(path: str | Path) -> tuple[dict[str, set[str]], dict[str, str], str]:
+    """Return ``(parents, labels, data_version)`` for non-obsolete HP terms.
+
+    Only ``id``, ``name``, ``is_a`` and ``is_obsolete`` are read; everything else
+    in the OBO is ignored.
+    """
+    parents: dict[str, set[str]] = {}
+    labels: dict[str, str] = {}
+    version = ""
+    cur: str | None = None
+    cur_parents: set[str] = set()
+    cur_label = ""
+    obsolete = False
+
+    def flush() -> None:
+        if cur and not obsolete:
+            parents[cur] = cur_parents
+            labels[cur] = cur_label or cur
+
+    with open(path, encoding="utf-8") as f:
+        for raw in f:
+            line = raw.rstrip("\n")
+            if line.startswith("data-version:"):
+                version = line.split(":", 1)[1].strip()
+            elif line == "[Term]":
+                flush()
+                cur, cur_parents, cur_label, obsolete = None, set(), "", False
+            elif line.startswith("[") and line.endswith("]"):
+                flush()
+                cur = None
+            elif cur is None and line.startswith("id: HP:"):
+                cur = line[4:].strip()
+            elif cur and line.startswith("name: "):
+                cur_label = line[6:].strip()
+            elif cur and line.startswith("is_a: HP:"):
+                cur_parents.add(line[6:].split("!")[0].strip())
+            elif cur and line.startswith("is_obsolete: true"):
+                obsolete = True
+        flush()
+    return parents, labels, version
+
+
 class HpoGraph:
-    def __init__(self, db_path: str | Path):
-        self.con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-        self._anc: dict[str, set[str]] = {}
-        self._desc: dict[str, set[str]] = {}
+    def __init__(self, obo_path: str | Path):
+        self._parents, self.labels, self.version = parse_obo(obo_path)
+        self._children: dict[str, set[str]] = {}
+        for child, ps in self._parents.items():
+            for p in ps:
+                self._children.setdefault(p, set()).add(child)
+        self._anc_cache: dict[str, frozenset[str]] = {}
+        self._desc_cache: dict[str, frozenset[str]] = {}
         self._depth_cache: dict[str, int] = {}
-        self._load_edges()
         self._precompute()
 
-    def _load_edges(self) -> None:
-        cur = self.con.execute(
-            "SELECT subject, object FROM entailed_edge "
-            "WHERE predicate = ? AND subject LIKE 'HP:%' AND object LIKE 'HP:%'",
-            (IS_A,),
-        )
-        for subj, obj in cur:
-            # entailed_edge is reflexive+transitive: subject is-a* object.
-            self._anc.setdefault(subj, set()).add(obj)
-            self._desc.setdefault(obj, set()).add(subj)
-        # direct parents (non-transitive) for longest-path depth
-        self._parents: dict[str, set[str]] = {}
-        for subj, obj in self.con.execute(
-            "SELECT subject, object FROM edge "
-            "WHERE predicate = ? AND subject LIKE 'HP:%' AND object LIKE 'HP:%'",
-            (IS_A,),
-        ):
-            self._parents.setdefault(subj, set()).add(obj)
+    def _closure(self, term: str, adjacency: dict[str, set[str]],
+                 cache: dict[str, frozenset[str]]) -> frozenset[str]:
+        if term in cache:
+            return cache[term]
+        cache[term] = frozenset({term})  # cycle guard
+        acc: set[str] = {term}
+        for nxt in adjacency.get(term, ()):
+            acc |= self._closure(nxt, adjacency, cache)
+        out = frozenset(acc)
+        cache[term] = out
+        return out
 
     def _precompute(self) -> None:
         """Pin the universe, ancestor frozensets, and structure-based IC up front
         so per-pair similarity is dict lookups rather than repeated set algebra."""
-        u = self._desc.get(PHENOTYPIC_ABNORMALITY, set()) | {PHENOTYPIC_ABNORMALITY}
-        self.universe: frozenset[str] = frozenset(u)
+        u = self._closure(PHENOTYPIC_ABNORMALITY, self._children, self._desc_cache)
+        self.universe: frozenset[str] = u
         n = len(u)
         self._anc_u: dict[str, frozenset[str]] = {}
         self._ic: dict[str, float] = {}
         for t in u:
-            self._anc_u[t] = frozenset((self._anc.get(t, set()) | {t}) & u)
-            n_desc = len((self._desc.get(t, set()) | {t}) & u)
+            self._anc_u[t] = self._closure(t, self._parents, self._anc_cache) & u
+            n_desc = len(self._closure(t, self._children, self._desc_cache) & u)
             self._ic[t] = -math.log2(n_desc / n) if n_desc else 0.0
 
     def ancestors(self, term: str) -> frozenset[str]:
@@ -69,7 +104,9 @@ class HpoGraph:
 
     def descendants(self, term: str) -> set[str]:
         """Reflexive descendants of ``term`` within the phenotype universe."""
-        return (self._desc.get(term, set()) | {term}) & self.universe
+        if term not in self.universe:
+            return set()
+        return set(self._closure(term, self._children, self._desc_cache) & self.universe)
 
     def closure(self, terms: set[str]) -> set[str]:
         """Union of reflexive ancestor closures (is-a, capped at HP:0000118)."""
@@ -104,13 +141,6 @@ class HpoGraph:
         d = 1 + max((self.depth(p) for p in parents), default=-1)
         self._depth_cache[term] = d
         return d
-
-    @cached_property
-    def labels(self) -> dict[str, str]:
-        cur = self.con.execute(
-            "SELECT subject, value FROM rdfs_label_statement WHERE subject LIKE 'HP:%'"
-        )
-        return {s: v for s, v in cur}
 
     def label(self, term: str) -> str:
         return self.labels.get(term, term)

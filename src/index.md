@@ -19,6 +19,16 @@ const perDisease = await FileAttachment("data/per_disease.json").json();
 const scored = perDisease.filter((d) => d.match_type === "exact");
 ```
 
+```js
+const versions = await FileAttachment("data/versions.json").json();
+```
+
+<div class="small muted">
+Comparing dismech <b>${versions.dismech_tag || versions.dismech}</b> (exported ${versions.dismech_date}) against HPOA
+<b>${versions.hpoa}</b> (HPO ${versions.hpo.replace("hp/releases/", "")}); built ${versions.built}.
+How this has changed release by release: <a href="./history">over time →</a>.
+</div>
+
 <div class="grid grid-cols-4">
   <div class="card">
     <h2>Diseases compared</h2>
@@ -124,6 +134,7 @@ Plot.plot({
 })
 ```
 
+See how all of this has moved [over time](./history), release by release.
 Browse individual diseases on the [per-disease](./diseases) page; see what each
 resource holds uniquely on [novel & missing](./diff); see [methods](./methods) for
 the framing and exactly what is and isn't compared.

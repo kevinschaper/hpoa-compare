@@ -1,38 +1,34 @@
 """Build the comparison artifacts consumed by the Observable Framework site."""
 from __future__ import annotations
 
+import csv
 import json
-from collections import Counter, defaultdict
+from datetime import date
 from pathlib import Path
 
 import click
 
+from . import compare
 from . import frequency as freq
-from . import load, mapping, metrics
-from .hpo import HpoGraph
-from .mondo import MondoGraph
 
 ROOT = Path(__file__).resolve().parents[2]
 INPUTS = ROOT / "data" / "inputs"
+HISTORY = ROOT / "data" / "history"          # per-release cache (committed)
 ARTIFACTS = ROOT / "src" / "data"
-
-# fall back to OAK's local semsql cache if the pinned copy hasn't been fetched
-_OAK_HP = Path.home() / ".data" / "oaklib" / "hp.db"
-
-
-def _hp_db() -> Path:
-    pinned = INPUTS / "hp.db"
-    if pinned.exists():
-        return pinned
-    if _OAK_HP.exists():
-        return _OAK_HP
-    raise FileNotFoundError("hp.db not found; run `just fetch` or install via OAK")
+REPLACED_BY = ROOT / "data" / "mondo_replaced_by.tsv"
 
 
 def _write(name: str, obj) -> None:
     path = ARTIFACTS / name
     path.write_text(json.dumps(obj, indent=2))
     click.echo(f"  wrote {path.relative_to(ROOT)}")
+
+
+def _load_context() -> compare.Context:
+    click.echo("loading MONDO map + graph and HPO graph...")
+    ctx = compare.load_context(INPUTS, REPLACED_BY)
+    click.echo(f"  context {ctx.key}")
+    return ctx
 
 
 @click.group()
@@ -42,219 +38,141 @@ def cli() -> None:
 
 @cli.command()
 def build() -> None:
-    """Load inputs, map diseases, compute metrics, emit src/data/*.json."""
-    click.echo("loading inputs...")
-    jax = load.load_hpoa(INPUTS / "phenotype.hpoa")
-    dis = load.load_hpoa(INPUTS / "phenotype.dismech.hpoa")
-    dmap = mapping.load_disease_map(INPUTS / "mondo.sssom.tsv")
-
-    replaced_by = mapping.load_replaced_by(ROOT / "data" / "mondo_replaced_by.tsv")
-
-    jax_terms = load.disease_to_terms(jax)
-    dis_terms_raw = load.disease_to_terms(dis)
-    dis_labels = load.disease_labels(dis)
-
-    # Resolve obsolete MONDO terms on the dismech side too, so both sides agree.
-    dis_terms: dict[str, set[str]] = {}
-    for m, t in dis_terms_raw.items():
-        dis_terms.setdefault(mapping.resolve_obsolete(m, replaced_by), set()).update(t)
-
-    # Lift HPOA up into MONDO space (obsolete targets redirected to live terms).
-    hpoa_mondo_terms, hpoa_mondo_ids = mapping.lift_hpoa_to_mondo(jax_terms, dmap, replaced_by)
-
-    # Frequency bands per (MONDO disease, phenotype), flattened to HP bands so the
-    # two sides can be compared. dismech: direct; HPOA: mode across the OMIM/ORPHA
-    # ids that lift to a MONDO (obsolete resolved).
-    dismech_bands: dict[str, dict[str, str]] = defaultdict(dict)
-    for (m, hp), raw in load.disease_phenotype_frequency(dis).items():
-        band = freq.to_band(raw)
-        if band:
-            dismech_bands[mapping.resolve_obsolete(m, replaced_by)][hp] = band
-    _hpoa_band_votes: dict[str, dict[str, Counter]] = defaultdict(lambda: defaultdict(Counter))
-    for (hid, hp), raw in load.disease_phenotype_frequency(jax).items():
-        band = freq.to_band(raw)
-        if not band:
-            continue
-        for m in dmap.hpoa_to_mondo.get(hid, ()):
-            _hpoa_band_votes[mapping.resolve_obsolete(m, replaced_by)][hp][band] += 1
-    hpoa_bands: dict[str, dict[str, str]] = {
-        m: {hp: votes.most_common(1)[0][0] for hp, votes in hps.items()}
-        for m, hps in _hpoa_band_votes.items()
-    }
-
-    # Exclude the ontology root and other non-disease groupings that would sweep
-    # in the entire subtree as "covered".
-    NON_DISEASE = {"MONDO:0000001"}  # "disease" (root)
-    dismech_mondo = {m for m, t in dis_terms.items() if t and m not in NON_DISEASE}
-    hpoa_mondo = {m for m, t in hpoa_mondo_terms.items() if t}
-    exact_shared = dismech_mondo & hpoa_mondo
-
-    def _label(mondo: str) -> str:
-        return dis_labels.get(mondo) or dmap.mondo_labels.get(mondo) or mondo
-
-    click.echo("loading MONDO is-a graph (release KGX)...")
-    mg = MondoGraph(INPUTS / "mondo_edges.tsv", INPUTS / "mondo_nodes.tsv")
-    click.echo("loading HPO closure (entailed_edge)...")
-    hpo = HpoGraph(_hp_db())
-
-    # --- lineage-aware disease matching (disease-axis analogue of phenotype closure) ---
-    # A dismech grouping disease covers HPOA annotations on its subtype (descendant)
-    # MONDO nodes; a dismech subtype is covered by an HPOA grouping (ancestor).
-    # Bounded to LINEAGE_HOPS so matching means "adjacent granularity / same disease",
-    # not "anywhere in the category" (which would let a grouping swallow its subtree).
-    LINEAGE_HOPS = 2
-    comparisons: list[metrics.DiseaseComparison] = []
-    dismech_only: list[str] = []
-    covered_hpoa: set[str] = set()   # HPOA MONDO nodes on some dismech disease's lineage
-    for d in sorted(dismech_mondo):
-        if d in hpoa_mondo:
-            match_type, h_match = "exact", {d}
-        else:
-            anc = (mg.ancestors_within(d, LINEAGE_HOPS) - {d}) & hpoa_mondo
-            desc = (mg.descendants_within(d, LINEAGE_HOPS) - {d}) & hpoa_mondo
-            h_match = anc | desc
-            if not h_match:
-                dismech_only.append(d)
-                continue
-            match_type = "mixed" if (anc and desc) else "descendant" if desc else "ancestor"
-        covered_hpoa |= h_match
-        h_terms: set[str] = set().union(*(hpoa_mondo_terms[h] for h in h_match))
-        h_ids = sorted(set().union(*(hpoa_mondo_ids[h] for h in h_match)))
-        # frequency bands are meaningful only for exact matches, where the HPOA
-        # node is the MONDO itself (lineage aggregates subtype frequencies).
-        comparisons.append(
-            metrics.compare_disease(
-                d, _label(d), h_ids, dis_terms[d], h_terms, hpo,
-                match_type=match_type, n_hpoa_nodes=len(h_match),
-                dismech_bands=dismech_bands.get(d) if match_type == "exact" else None,
-                hpoa_bands=hpoa_bands.get(d) if match_type == "exact" else None,
-            )
-        )
-    comparisons.sort(key=lambda c: (c.closure.f1, c.mondo))
-    exact_comps = [c for c in comparisons if c.match_type == "exact"]
-    lineage_comps = [c for c in comparisons if c.match_type != "exact"]
-
-    hpoa_only = hpoa_mondo - covered_hpoa
-    hpoa_lineage_covered = covered_hpoa - exact_shared
-
-    # --- disease-axis coverage rows ---
-    # secondary sort on mondo so ties are deterministic (set iteration is not)
-    dismech_only_rows = sorted(
-        ({"mondo": m, "label": _label(m), "n_terms": len(dis_terms[m]),
-          "beyond_omim_orpha": not dmap.has_hpoa_xref(m)} for m in dismech_only),
-        key=lambda r: (-r["n_terms"], r["mondo"]),
+    """Compare the current pair of inputs and emit src/data/*.json."""
+    ctx = _load_context()
+    click.echo("comparing current inputs...")
+    res = compare.compare_files(
+        ctx, INPUTS / "phenotype.dismech.hpoa", INPUTS / "phenotype.hpoa", keep_diffs=True,
     )
-    lineage_rows = sorted(
-        ({"mondo": c.mondo, "label": c.label, "match_type": c.match_type,
-          "n_hpoa_nodes": c.n_hpoa_nodes, "closure_f1": c.closure.f1} for c in lineage_comps),
-        key=lambda r: (-r["n_hpoa_nodes"], r["mondo"]),
-    )
-    hpoa_only_rows = sorted(
-        ({"mondo": m, "label": dmap.mondo_labels.get(m, m),
-          "n_terms": len(hpoa_mondo_terms[m]),
-          "hpoa_ids": sorted(hpoa_mondo_ids.get(m, set()))[:4]} for m in hpoa_only),
-        key=lambda r: (-r["n_terms"], r["mondo"]),
-    )
-    disease_coverage = {
-        "dismech_only": dismech_only_rows,
-        "lineage_shared": lineage_rows,
-        "hpoa_only": hpoa_only_rows,
-    }
-
-    # --- term comparability (HP-typed vs DISMECH synthetic) ---
-    dis_hp = int((dis["hpo_id"].str.startswith("HP:")).sum())
-    dis_synth = int((dis["hpo_id"].str.startswith("DISMECH:")).sum())
-
-    coverage = {
-        "dismech_diseases": len(dismech_mondo),
-        "hpoa_diseases_mondo": len(hpoa_mondo),
-        "hpoa_diseases_raw": len(jax_terms),
-        "exact_shared": len(exact_shared),
-        "lineage_shared": len(lineage_comps),
-        "dismech_only": len(dismech_only),
-        "dismech_only_beyond_omim_orpha": sum(r["beyond_omim_orpha"] for r in dismech_only_rows),
-        "hpoa_lineage_covered": len(hpoa_lineage_covered),
-        "hpoa_only": len(hpoa_only),
-        "dismech_rows_hp": dis_hp,
-        "dismech_rows_synthetic": dis_synth,
-        "term_comparability": round(dis_hp / (dis_hp + dis_synth), 4),
-    }
-    # Phenotype aggregates are over EXACT MONDO matches only: lineage (grouping)
-    # matches union subtype annotations and would distort recall.
-    aggregates = {
-        "n_scored_exact": len(exact_comps),
-        "n_lineage": len(lineage_comps),
-        "scored_set": "exact MONDO matches",
-        "exact": {
-            "micro": metrics.micro_average(exact_comps, "exact"),
-            "macro": metrics.macro_average(exact_comps, "exact"),
-        },
-        "closure": {
-            "micro": metrics.micro_average(exact_comps, "closure"),
-            "macro": metrics.macro_average(exact_comps, "closure"),
-        },
-        "total_novel": sum(c.n_novel for c in exact_comps),
-        "total_missing": sum(c.n_missing for c in exact_comps),
-        "more_specific": sum(c.more_specific for c in exact_comps),
-        "more_general": sum(c.more_general for c in exact_comps),
-    }
-
-    # --- frequency concordance on shared phenotypes (exact disease matches) ---
-    fc: Counter = Counter()
-    freq_disagreements: list[dict] = []
-    for c in exact_comps:
-        for t in c.shared_terms:
-            db, hb = t.get("dismech_band"), t.get("hpoa_band")
-            if db and hb:
-                dist = freq.distance(db, hb)
-                fc["same" if dist == 0 else "adjacent" if dist == 1 else "disagree"] += 1
-                if dist >= 1:
-                    freq_disagreements.append({
-                        "mondo": c.mondo, "disease": c.label,
-                        "phenotype": t["id"], "label": t["label"],
-                        "dismech": freq.BAND_LABEL[db], "hpoa": freq.BAND_LABEL[hb],
-                        "distance": dist,
-                    })
-            elif db or hb:
-                fc["one_side"] += 1
-            else:
-                fc["neither"] += 1
-    freq_disagreements.sort(key=lambda r: (-r["distance"], r["mondo"], r["phenotype"]))
     frequency_report = {
         "band_order": [freq.BAND_LABEL[b] for b in freq.BANDS],
-        "summary": {
-            "same": fc["same"], "adjacent": fc["adjacent"], "disagree": fc["disagree"],
-            "one_side_only": fc["one_side"], "neither_specified": fc["neither"],
-            "both_specified": fc["same"] + fc["adjacent"] + fc["disagree"],
-        },
-        "disagreements": freq_disagreements,
+        "summary": res.frequency_summary,
+        "disagreements": res.frequency_disagreements,
     }
-
-    # Browser data includes dismech-only diseases (no HPOA counterpart) so every
-    # dismech disease is findable; they are not in the overlap aggregates above.
-    dismech_only_comps = [
-        metrics.compare_disease(
-            d, _label(d), [], dis_terms[d], set(), hpo,
-            match_type="dismech-only", n_hpoa_nodes=0,
-        )
-        for d in sorted(dismech_only)
-    ]
-    browser = sorted(comparisons + dismech_only_comps, key=lambda c: c.mondo)
+    versions = {
+        "dismech": res.dismech_header.get("version", ""),
+        "dismech_tag": _current_dismech_tag(),
+        "dismech_date": res.dismech_header.get("date", ""),
+        "hpoa": res.hpoa_header.get("version", ""),
+        "hpo": ctx.hpo.version,
+        "built": date.today().isoformat(),
+    }
 
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     click.echo("writing artifacts...")
-    _write("coverage.json", coverage)
-    _write("aggregates.json", aggregates)
-    _write("per_disease.json", [c.to_row() for c in browser])
-    _write("disease_coverage.json", disease_coverage)
+    _write("coverage.json", res.coverage)
+    _write("aggregates.json", res.aggregates)
+    _write("per_disease.json", [c.to_row() for c in res.browser])
+    _write("disease_coverage.json", res.disease_coverage)
     _write("frequency.json", frequency_report)
+    _write("versions.json", versions)
 
+    cov, agg = res.coverage, res.aggregates
     click.echo(
-        f"\nMONDO coverage: {len(exact_shared)} exact-shared + {len(lineage_comps)} "
-        f"lineage-shared | {len(dismech_only)} dismech-only | {len(hpoa_only)} HPOA-only\n"
+        f"\nMONDO coverage: {cov['exact_shared']} exact-shared + {cov['lineage_shared']} "
+        f"lineage-shared | {cov['dismech_only']} dismech-only | {cov['hpoa_only']} HPOA-only\n"
         f"phenotype overlap (exact disease matches): closure Jaccard "
-        f"{aggregates['closure']['micro']['jaccard']} (exact {aggregates['exact']['micro']['jaccard']})"
+        f"{agg['closure']['micro']['jaccard']} (exact {agg['exact']['micro']['jaccard']})"
     )
+
+
+def _current_dismech_tag() -> str:
+    """The dismech release tag whose export is byte-identical to the current input."""
+    import hashlib
+    cur = INPUTS / "phenotype.dismech.hpoa"
+    tags_dir = INPUTS / "dismech"
+    if not (cur.exists() and (tags_dir / "tags.tsv").exists()):
+        return ""
+    digest = hashlib.sha256(cur.read_bytes()).hexdigest()
+    for t in reversed(_read_tags()):
+        f = tags_dir / t["tag"] / "phenotype.dismech.hpoa"
+        if f.exists() and hashlib.sha256(f.read_bytes()).hexdigest() == digest:
+            return t["tag"]
+    return ""
+
+
+def _read_tags() -> list[dict[str, str]]:
+    with open(INPUTS / "dismech" / "tags.tsv", newline="") as f:
+        rows = list(csv.DictReader(f, delimiter="\t"))
+    return sorted(rows, key=lambda r: (r["date"], r["tag"]))
+
+
+def _hpoa_releases() -> list[str]:
+    return sorted(p.name for p in (INPUTS / "hpoa").iterdir()
+                  if (p / "phenotype.hpoa").exists())
+
+
+def pair_hpoa_release(tag_date: str, releases: list[str]) -> str:
+    """Newest HPO release on or before ``tag_date`` (else the oldest available)."""
+    eligible = [r for r in releases if r <= tag_date]
+    return eligible[-1] if eligible else releases[0]
+
+
+@cli.command()
+@click.option("--force", is_flag=True, help="recompute every release, ignoring the cache")
+@click.option("--tag", "only", multiple=True, help="restrict to these dismech tags")
+def history(force: bool, only: tuple[str, ...]) -> None:
+    """Compare every dismech release against its contemporary HPOA; emit history."""
+    import duckdb
+    import pandas as pd
+
+    tags = _read_tags()
+    if only:
+        tags = [t for t in tags if t["tag"] in only]
+    releases = _hpoa_releases()
+    HISTORY.mkdir(parents=True, exist_ok=True)
+    ctx: compare.Context | None = None
+
+    for t in tags:
+        tag, tag_date = t["tag"], t["date"]
+        dismech_path = INPUTS / "dismech" / tag / "phenotype.dismech.hpoa"
+        if not dismech_path.exists():
+            click.echo(f"  {tag}: no export, skipping")
+            continue
+        hpoa_rel = pair_hpoa_release(tag_date, releases)
+        meta_path = HISTORY / f"{tag}.json"
+        pq_path = HISTORY / f"{tag}.parquet"
+        if ctx is None:
+            ctx = _load_context()
+        if not force and meta_path.exists() and pq_path.exists():
+            cached = json.loads(meta_path.read_text())
+            if cached.get("context_key") == ctx.key and cached.get("hpoa_release") == hpoa_rel:
+                click.echo(f"  {tag} ({tag_date}) cached")
+                continue
+        click.echo(f"  {tag} ({tag_date}) vs HPOA {hpoa_rel} ...", nl=False)
+        res = compare.compare_files(
+            ctx, dismech_path, INPUTS / "hpoa" / hpoa_rel / "phenotype.hpoa", keep_diffs=False,
+        )
+        rows = [{"release": tag, "release_date": tag_date, "hpoa_release": hpoa_rel,
+                 **compare.history_rows(c)} for c in res.browser]
+        df = pd.DataFrame(rows)  # noqa: F841  (DuckDB reads it by name below)
+        duckdb.sql("COPY (SELECT * FROM df ORDER BY mondo) TO '{}' (FORMAT PARQUET)".format(pq_path))
+        meta = {
+            "release": tag, "release_date": tag_date, "commit": t.get("commit", ""),
+            "hpoa_release": hpoa_rel, "hpoa_version": res.hpoa_header.get("version", ""),
+            "dismech_version": res.dismech_header.get("version", ""),
+            "context_key": ctx.key,
+            **compare.release_totals(res),
+        }
+        meta_path.write_text(json.dumps(meta, indent=2))
+        click.echo(f" {res.coverage['dismech_diseases']} diseases, "
+                   f"closure Jaccard {res.aggregates['closure']['micro']['jaccard']}")
+
+    # --- combine per-release caches into the site artifacts (DuckDB) ---
+    ARTIFACTS.mkdir(parents=True, exist_ok=True)
+    out_pq = ARTIFACTS / "history.parquet"
+    duckdb.sql(
+        f"COPY (SELECT * FROM read_parquet('{HISTORY}/*.parquet') "
+        f"ORDER BY release_date, release, mondo) TO '{out_pq}' (FORMAT PARQUET, COMPRESSION ZSTD)"
+    )
+    click.echo(f"  wrote {out_pq.relative_to(ROOT)}")
+    metas = sorted(
+        (json.loads(p.read_text()) for p in HISTORY.glob("*.json")),
+        key=lambda m: (m["release_date"], m["release"]),
+    )
+    _write("history_releases.json", metas)
+    n = duckdb.sql(f"SELECT count(*), count(DISTINCT release) FROM '{out_pq}'").fetchone()
+    click.echo(f"\nhistory: {n[1]} releases, {n[0]} disease-release rows")
 
 
 if __name__ == "__main__":

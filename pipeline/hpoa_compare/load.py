@@ -85,3 +85,16 @@ def disease_phenotype_frequency(df: pd.DataFrame) -> dict[tuple[str, str], str]:
         if freq and key not in out:
             out[key] = freq
     return out
+
+
+def read_header(path: str | Path) -> dict[str, str]:
+    """``#key: value`` comment lines at the top of an HPOA file (version, date...)."""
+    out: dict[str, str] = {}
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            if not line.startswith("#"):
+                break
+            key, sep, value = line[1:].partition(":")
+            if sep and " " not in key.strip():
+                out[key.strip()] = value.strip()
+    return out
